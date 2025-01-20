@@ -1,0 +1,114 @@
+[
+       {
+              "name": "ChatList",
+              "isActive": "yes",
+              "regex": "^chatList",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatCall",
+              "isActive": "yes",
+              "regex": "^chatCall ((?:\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|(?:[a-zA-Z0-9-]+[\\.a-zA-Z]{2,}))(?::(\\d+))?",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatAll",
+              "isActive": "yes",
+              "regex": "^chatAll (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatPing",
+              "isActive": "yes",
+              "regex": "^chatPing (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "EmoteAll",
+              "isActive": "yes",
+              "regex": "^emoteAll (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatName",
+              "isActive": "yes",
+              "regex": "^chatName (\\S+)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatTo",
+              "isActive": "yes",
+              "regex": "^chatTo (.*?) (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "UnChat",
+              "isActive": "yes",
+              "regex": "^unChat (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "AllowSnoop",
+              "isActive": "yes",
+              "regex": "^chatAllowSnoop (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "Snoop",
+              "isActive": "yes",
+              "regex": "^chatSnoop (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "StartServer",
+              "isActive": "yes",
+              "regex": "^startServer( \\d+)?",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "StopServer",
+              "isActive": "yes",
+              "regex": "^stopServer",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatIgnore",
+              "isActive": "yes",
+              "regex": "^chatIgnore (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "Peek",
+              "isActive": "yes",
+              "regex": "^chatPeek (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "ChatToGroup",
+              "isActive": "yes",
+              "regex": "^cg ([a-zA-Z0-9]+) (.*)",
+              "script": "",
+              "isFolder": "no"
+       },
+       {
+              "name": "SetGroup",
+              "isActive": "yes",
+              "regex": "^setGroup ([a-zA-Z0-9]+) ?(.*)",
+              "script": "",
+              "isFolder": "no"
+       }
+]

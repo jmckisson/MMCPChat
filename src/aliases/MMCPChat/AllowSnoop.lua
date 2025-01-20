@@ -1,0 +1,1 @@
+chatAllowSnoop(matches[2])

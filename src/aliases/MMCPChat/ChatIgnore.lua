@@ -1,0 +1,1 @@
+chatIgnore(matches[2])

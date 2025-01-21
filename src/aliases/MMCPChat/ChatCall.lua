@@ -4,4 +4,4 @@ if matches[3] ~= nil then
   port = matches[3]
 end
 
-chatCall(addr, port)
+MMCP.chatCall(addr, port)

@@ -1,1 +1,1 @@
-chat(matches[2], matches[3])
+MMCP.chat(matches[2], matches[3])

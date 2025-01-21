@@ -1,4 +1,4 @@
-chatName(matches[2])
+MMCP.chatName(matches[2])
 
 -- For CombatReps script, needs refactor
 if CR then

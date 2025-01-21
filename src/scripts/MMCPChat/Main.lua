@@ -1,14 +1,36 @@
 local socket = require("socket.core")
 
-if MMCP and MMCP.socketTimer then
-  killTimer(MMCP.socketTimer)
-end
 
 MMCP = MMCP or {
   clients = {},
-  serverPort = 4050,
-  chatName = "Humera"
+  options = {
+    serverPort = 4050,
+    chatName = "MudletUser"
+  },
+  localAddress = nil,
+  version = "Mudlet MMCP __VERSION__"
 }
+
+MMCP.commands = {
+    NameChange = 1,
+    RequestConnections = 2,
+    ConnectionList = 3,
+    ChatEverybody = 4,
+    ChatPersonal = 5,
+    ChatGroup = 6,
+    ChatMessage = 7,
+    DoNotDisturb = 8,
+    Version = 19,
+    PingRequest = 26,
+    PingResponse = 27,
+    PeekConnections = 28,
+    PeekList = 29,
+    EndOfCommand = 255
+}
+
+function MMCP.ChatInfoMessage(message)
+    cecho(string.format("\n<yellow>[ CHAT ]  - <green>%s<reset>\n", message))
+end
 
 
 function hexDump(message)
@@ -18,7 +40,7 @@ function hexDump(message)
         local chunk = message:sub(i, i + 15)
         local hexBytes = {}
         local asciiBytes = {}
-        
+
         for j = 1, #chunk do
             local byte = chunk:sub(j, j):byte()
             table.insert(hexBytes, string.format("%02x", byte))
@@ -30,164 +52,241 @@ function hexDump(message)
                 table.insert(asciiBytes, ".")
             end
         end
-        
+
         -- Create the hex and ASCII lines
         local hexLine = table.concat(hexBytes, " ")
         local asciiLine = table.concat(asciiBytes)
         table.insert(result, string.format("%04x   %-48s   %s", i - 1, hexLine, asciiLine))
     end
-    
+
     -- Print the result
     print(table.concat(result, "\n"))
 end
 
 
+function MMCP.GetClientByNameOrId(target)
+    local numeric = tonumber(target)
 
--- Function to handle incoming messages
-function MMCP.handleMessage(client, message)
-  
-  if client.state == "ConnectingOut" then
-    print("Received negotiation from", client.host, ":", client.buffer)
-    local success, clientName = client.buffer:match("^(%S+):(%S+)")
-    if success == "YES" then
-      client.name = clientName
-      client.state = "Connected"
-      cecho(string.format("\n<yellow>[ CHAT ]  - <green>Connection to %s at %s successful\n",
-        client.name, client.tcp:getsockname()))
-        
-      client.buffer = client.buffer:sub(string.len(clientName) + 5)
-    else
-      client.tcp:close()
+    for id, client in pairs(MMCP.clients) do
+        if numeric and numeric == id then
+            return client
+        elseif string.lower(client:GetName()) == string.lower(target) then
+            return client
+        end
     end
-  elseif client.state == "Connected" then
 
-    local msgEnd = string.find(client.buffer, string.char(0xff), 2)
-    if not msgEnd then
-      return
-    end
-    local payload = client.buffer:sub(1, msgEnd - 1)
-    client.buffer = client.buffer:sub(msgEnd + 1)
-    
-    echo("Received message from " .. client.name .. " : " .. payload .. "\n")
-    hexDump(payload)
-    local msgType = string.byte(payload:sub(1, 1))
-    
-    echo("msgType " .. msgType .. "  msgEnd " .. msgEnd .. "\n")
-    payload = payload:sub(2)
+    return nil
+end
 
-    if msgType == 4 then      -- chat everybody
-      local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload)
-      decho(ansiMsg.."\n")
-      -- Check if we're serving this person
-    elseif msgType == 5 then  -- personal chat
-      local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload)
-      decho(ansiMsg.."\n")
-    elseif msgType == 19 then
-      print("Got version from " .. client.name .. " : " .. payload .. "\n")
-      client.version = payload
-    else
-      print("Unknown message type " .. msgType .. " received from " .. client.name .. "\n")
+
+function MMCP.LoadOptions()
+    local loadTable = {}
+    local tablePath = getMudletHomeDir().."/mmcp"..getProfileName()..".lua"
+    if io.exists(tablePath) then
+        table.load(tablePath, loadTable)
     end
-    
-  end
+
+    MMCP.options = table.deepcopy(loadTable.options)
+
+    MMCP.ChatInfoMessage(string.format("Loaded options for %s", getProfileName()))
+end
+
+
+function MMCP.SaveOptions()
+
+    local saveTable = {
+        options = table.deepcopy(MMCP.options)
+    }
+
+    table.save(getMudletHomeDir().."/mmcp_"..getProfileName()..".lua", saveTable)
+
+    MMCP.ChatInfoMessage(string.format("Saved options for %s", getProfileName()))
 end
 
 
 -- Coroutine to receive messages for a specific client
 function MMCP.receiveMessages(client)
-  client.buffer = client.buffer or ""
-  --return coroutine.create(function()
+
     while true do
-      --echo("MMCP.receiveMessages\n")
-      local s, status, partial = client.tcp:receive()
-      client.buffer = client.buffer .. (s or partial or "")
-      if client.buffer and string.len(client.buffer) > 0 then
-        MMCP.handleMessage(client, client.buffer)
-      end
-      if status == "closed" then 
-        echo("Client closed\n")
-        client.active = false
-        break
-      elseif status == "timeout" then
-        coroutine.yield(client)
-      end
-      
+        --echo("MMCP.receiveMessages\n")
+        local s, status, partial = client:GetSocket():receive()
+        client:SetBuffer(client:GetBuffer() .. (s or partial or ""))
+        if client:GetBufferLength() > 0 then
+            client:HandleMessage()
+        end
+        if status == "closed" then 
+            MMCP.ChatInfoMessage(string.format("Connection from %s lost\n", client:GetNameHostString()))
+            client:SetActive(false)
+            break
+        elseif status == "timeout" then
+            coroutine.yield(client)
+        end
+
       --echo("Client resumed\n")
     end
-  --end)
-end
 
-
--- Coroutine for sending a ping message
-function MMCP.sendPing(tcp)
-    return coroutine.create(function()
-        local pingMessage = "PING" -- Adjust based on MMCP command format
-        while true do
-            tcp:send(pingMessage)
-            coroutine.yield() -- Yield until the next time we want to send a ping
-        end
-    end)
 end
 
 
 function MMCP.chatList()
-  echo("\n")
-  echo(
+    echo("\n")
+    echo(
   [[
 Id   Name                 Address              Port  Group           Flags    ChatClient
 ==== ==================== ==================== ===== =============== ======== ================]]
   )
-  echo("\n")
-  
-  for id, client in pairs(MMCP.clients) do
-    local flagStr = ""
-    local infoStr = string.format("%-20s %-20s %-5d %-15s %-8s",
-      client.name, client.host, client.port, client.group or "None", flagStr)
-      
-    cecho(string.format("%s%-4d %s%s%s\n", "<green>", id, "<reset>", infoStr, client.version))
-  end
-  
-  cecho(string.format(
+    echo("\n")
+
+    for id, client in pairs(MMCP.clients) do
+        cecho(string.format("%s%-4d %s%s\n", "<green>", id, "<reset>", client:GetInfoString()))
+    end
+
+    cecho(string.format(
   [[
 ==== ==================== ==================== ===== =============== ======== ================
 Color Key: %sConnected  %sPending%s
 Flags:  A - Allow Commands, F - Firewall, I - Ignore,  P - Private   n - Allow Snooping
         N - Being Snooped,  S - Serving,  T - Allows File Transfers, X - Serve Exclude]]
 , "<green>", "<yellow>", "<reset>"))
-  
+
 end
 
+function MMCP.getLocalIPAddress()
+    if not MMCP.localAddress then
+        -- Create a UDP socket
+        local udp = socket.udp()
+        -- Temporarily connect to a public DNS server (Google's) to determine the local IP
+        udp:setpeername("8.8.8.8", 80)
+        local ip, _ = udp:getsockname()
+        udp:close()
+        MMCP.localAddress = ip
+        return ip
+    else
+        return MMCP.localAddress
+    end
+end
 
 -- Initiates a new client connection
 function MMCP.chatCall(host, port)
-  local client = {tcp = assert(socket.tcp()), host = host, port = port, active = true}
-  client.tcp:connect(host, port)
-  client.tcp:settimeout(0) -- Non-blocking
-  client.id = #MMCP.clients + 1
-  
-  local function getLocalIPAddress()
-    -- Create a UDP socket
-    local udp = socket.udp()
-    -- Temporarily connect to a public DNS server (Google's) to determine the local IP
-    udp:setpeername("8.8.8.8", 80)
-    local ip, _ = udp:getsockname()
-    udp:close()
-    return ip
-  end
-  
-  local callString = string.format("CHAT:%s\n%s%-5d", MMCP.chatName, getLocalIPAddress(), MMCP.serverPort)
-  cecho("\n"..callString)
-  
-  client.state = "ConnectingOut"
-  
-  client.tcp:send(callString)
-  
-  local receiverCo = coroutine.create(MMCP.receiveMessages)
-  client.receiverCo = receiverCo
-  
-  MMCP.clients[client.id] = client -- Store client instance
-  return client.id -- Return client ID for reference
+    local tcp = assert(socket.tcp())
+    tcp:connect(host, port)
+    tcp:settimeout(0) -- Non-blocking
+    local id = #MMCP.clients + 1
+
+    local receiverCo = coroutine.create(MMCP.receiveMessages)
+
+    local client = Client:new(id, tcp, host, port, receiverCo)
+    client:SetState("ConnectingOut")
+
+    MMCP.clients[id] = client
+
+    client:DoCall()
+
+    return id
 end
+
+
+function MMCP.chatAll(message)
+
+    local outMsg = string.format("%s%s chats to everybody, '%s'%s",
+        string.char(MMCP.commands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() then
+            client:Send(outMsg)
+        end
+    end
+
+    local echoMsg = ansi2decho(string.format("%sYou chat to everybody, '%s'%s\n",
+        AnsiColors.FBLDRED, message, AnsiColors.StyleReset))
+
+    decho(echoMsg)
+end
+
+
+function MMCP.chatEmoteAll(message)
+    local outMsg = string.format("%s%s %s%s",
+        string.char(MMCP.commands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() then
+            client:Send(outMsg)
+        end
+    end
+
+    local echoMsg = ansi2decho(string.format("%s%s %s%s\n",
+        AnsiColors.FBLDRED, MMCP.options.chatName, message, AnsiColors.StyleReset))
+
+    decho(echoMsg)
+end
+
+
+function MMCP.chat(target, message)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local chatMsg = string.format("%s%s chats to you, '%s'%s",
+        string.char(MMCP.commands.ChatPersonal), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+
+    client:Send(chatMsg)
+
+    local echoMsg = ansi2decho(string.format("%sYou chat to %s, '%s'%s",
+        AnsiColors.FBLDRED, client:GetName(), message, AnsiColors.StyleReset))
+
+    decho(echoMsg)
+end
+
+
+function MMCP.chatName(name)
+    MMCP.clientName = name
+
+    local nameMsg = string.format("%s%s%s",
+        string.char(MMCP.commands.NameChange), name, string.char(MMCP.commands.EndOfCommand))
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() then
+            client:Send(nameMsg)
+        end
+    end
+
+    local echoMsg = string.format("You are now known as %s", name)
+    MMCP.ChatInfoMessage(echoMsg)
+
+    MMCP.SaveOptions()
+end
+
+
+function MMCP.chatPing(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local pingMsg = string.format("%s%d%s",
+        string.char(MMCP.commands.PingRequest), socket.gettime()*1000, string.char(MMCP.commands.EndOfCommand))
+
+    client:Send(pingMsg)
+
+    MMCP.ChatInfoMessage(string.format("Pinging %s...", client:GetName()))
+end
+
+
+function MMCP.chatUnChat(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    client:GetSocket():close()
+
+    MMCP.clients[client:GetId()] = nil
+end
+
 
 
 function MMCP.mainLoop()
@@ -195,12 +294,12 @@ function MMCP.mainLoop()
     --echo("MMCP.mainLoop\n")
     local activeClients = false
     for id, client in pairs(MMCP.clients) do
-      if client.active then
+      if client:IsActive() then
         --echo("Resuming client " .. id .. "\n")
-        local success, err = coroutine.resume(client.receiverCo, client)
+        local success, err = coroutine.resume(client:GetReceiver(), client)
         if not success then
           echo("Error resuming client coroutine: " .. err .. "\n")
-          client.active = false
+          client:SetActive(false)
         end
         activeClients = true
       else
@@ -235,3 +334,5 @@ if MMCP.socketTimer then
 end
 
 MMCP.socketTimer = tempTimer(.1, function() MMCP.manageMainLoop() end, true)
+
+MMCP.LoadOptions()

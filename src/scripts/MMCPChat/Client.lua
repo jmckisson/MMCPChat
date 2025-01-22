@@ -66,6 +66,10 @@ function Client:GetReceiver()
     return self.receiverCo
 end
 
+function Client:SetReceiver(receiver)
+    self.receiverCo = receiver
+end
+
 function Client:GetSocket()
     return self.socket
 end
@@ -98,6 +102,10 @@ function Client:SetHost(val)
     self.host = val
 end
 
+function Client:GetPort()
+    return self.port
+end
+
 function Client:GetVersion()
     return self.version
 end
@@ -112,7 +120,7 @@ end
 
 function Client:DoCall()
 
-    local callString = string.format("CHAT:%s\n%s%-5d", MMCP.chatName, MMCP.getLocalIPAddress(), MMCP.serverPort)
+    local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, MMCP.getLocalIPAddress(), MMCP.options.serverPort)
     cecho("\n"..callString)
     self.socket:send(callString)
 end
@@ -127,11 +135,11 @@ function Client:HandleConnectedState()
     local payload = self.buffer:sub(1, msgEnd - 1)
     self.buffer = self.buffer:sub(msgEnd + 1)
 
-    echo("Received message from " .. self.name .. " : " .. payload .. "\n")
+    --echo("Received message from " .. self.name .. " : " .. payload .. "\n")
     --hexDump(payload)
     local msgType = string.byte(payload:sub(1, 1))
 
-    echo("msgType " .. msgType .. "  msgEnd " .. msgEnd .. "\n")
+    --echo("msgType " .. msgType .. "  msgEnd " .. msgEnd .. "\n")
     payload = payload:sub(2)
 
     if msgType == MMCP.commands.NameChange then
@@ -141,27 +149,40 @@ function Client:HandleConnectedState()
         self:SetName(payload)
 
     elseif msgType == MMCP.commands.ChatEverybody then      -- chat everybody
-        local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload)
+        local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload .. AnsiColors.StyleReset)
+        if MMCP.options.prefixNewline then
+            echo("\n")
+        end
         decho(ansiMsg.."\n")
+        raiseEvent("sysMMCPMessage", ansiMsg)
         -- Check if we're serving this person
 
     elseif msgType == MMCP.commands.ChatPersonal then  -- personal chat
-        local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload)
+        local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload .. AnsiColors.StyleReset)
+        if MMCP.options.prefixNewline then
+            echo("\n")
+        end
         decho(ansiMsg.."\n")
+        raiseEvent("sysMMCPMessage", ansiMsg)
+
+    elseif msgType == MMCP.commands.ChatMessage then
+        local ansiMsg = ansi2decho(payload)
+        decho(ansiMsg.."\n")
+        raiseEvent("sysMMCPMessage", ansiMsg)
 
     elseif msgType == MMCP.commands.Version then
-        echo("Got version from " .. self.name .. " : " .. payload .. "\n")
+        --echo("Got version from " .. self.name .. " : " .. payload .. "\n")
         self.version = payload
 
     elseif msgType == MMCP.commands.PingRequest then
-        local pingMsg = string.format("%s%d%s",
+        local pingMsg = string.format("%s%s%s",
             string.char(MMCP.commands.PingResponse), payload, string.char(MMCP.commands.EndOfCommand))
 
         self:Send(pingMsg)
 
     elseif msgType == MMCP.commands.PingResponse then
         local pingResponse = tonumber(payload)
-        local pingTime = (socket.gettime() * 1000) - pingResponse
+        local pingTime = socket.gettime() - pingResponse
         MMCP.ChatInfoMessage(string.format("Ping returned from %s: %d ms",
             self.name, pingTime))
     else

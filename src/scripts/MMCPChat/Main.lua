@@ -1,12 +1,14 @@
 local socket = require("socket.core")
 
+MMCP.defaultOptions = {
+    chatName = "MudletUser",
+    serverPort = 4050,
+    prefixNewline = true
+}
 
 MMCP = MMCP or {
   clients = {},
-  options = {
-    serverPort = 4050,
-    chatName = "MudletUser"
-  },
+  options = table.deepcopy(MMCP.defaultOptions),
   localAddress = nil,
   version = "Mudlet MMCP __VERSION__"
 }
@@ -79,14 +81,49 @@ function MMCP.GetClientByNameOrId(target)
 end
 
 
+-- Note this currently isnt working as the restores clients arent "objects" and would
+-- probably need to be reinstantiated, using the same descriptor for the socket
+-- is another issue altogether...
+function MMCP.LoadClients()
+    local loadTable = {}
+    local tablePath = getMudletHomeDir().."/mmcp_clients_"..getProfileName()..".lua"
+    if io.exists(tablePath) then
+        table.load(tablePath, loadTable)
+    end
+
+    for k, v in pairs(loadTable) do
+        MMCP.chatCall(v.host, v.port)
+    end
+
+    MMCP.ChatInfoMessage(string.format("Restored clients for %s", getProfileName()))
+end
+
+
+function MMCP.SaveClients()
+    local saveTable = {}
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() then
+            table.insert(saveTable, {host=client:GetHost(), port=client:GetPort(), group=client:GetGroup()})
+        end
+    end
+
+    table.save(getMudletHomeDir().."/mmcp_clients_"..getProfileName()..".lua", saveTable)
+
+    --MMCP.ChatInfoMessage(string.format("Saved clients for %s", getProfileName()))
+end
+
+
 function MMCP.LoadOptions()
     local loadTable = {}
-    local tablePath = getMudletHomeDir().."/mmcp"..getProfileName()..".lua"
+    local tablePath = getMudletHomeDir().."/mmcp_"..getProfileName()..".lua"
     if io.exists(tablePath) then
         table.load(tablePath, loadTable)
     end
 
     MMCP.options = table.deepcopy(loadTable.options)
+
+    MMCP.options = MMCP.options or table.deepcopy(MMCP.defaultOptions)
 
     MMCP.ChatInfoMessage(string.format("Loaded options for %s", getProfileName()))
 end
@@ -115,7 +152,6 @@ function MMCP.receiveMessages(client)
             client:HandleMessage()
         end
         if status == "closed" then 
-            MMCP.ChatInfoMessage(string.format("Connection from %s lost\n", client:GetNameHostString()))
             client:SetActive(false)
             break
         elseif status == "timeout" then
@@ -180,6 +216,8 @@ function MMCP.chatCall(host, port)
 
     MMCP.clients[id] = client
 
+    MMCP.SaveClients()
+
     client:DoCall()
 
     return id
@@ -241,7 +279,7 @@ end
 
 
 function MMCP.chatName(name)
-    MMCP.clientName = name
+    MMCP.options.chatName = name
 
     local nameMsg = string.format("%s%s%s",
         string.char(MMCP.commands.NameChange), name, string.char(MMCP.commands.EndOfCommand))
@@ -266,8 +304,8 @@ function MMCP.chatPing(target)
         return
     end
 
-    local pingMsg = string.format("%s%d%s",
-        string.char(MMCP.commands.PingRequest), socket.gettime()*1000, string.char(MMCP.commands.EndOfCommand))
+    local pingMsg = string.format("%s%s%s",
+        string.char(MMCP.commands.PingRequest), socket.gettime(), string.char(MMCP.commands.EndOfCommand))
 
     client:Send(pingMsg)
 
@@ -283,8 +321,11 @@ function MMCP.chatUnChat(target)
     end
 
     client:GetSocket():close()
+    client:SetState("Closed")
+    client:SetActive(false)
 
-    MMCP.clients[client:GetId()] = nil
+    -- client table will get cleaned up in mainLoop
+    --MMCP.clients[client:GetId()] = nil
 end
 
 
@@ -303,7 +344,9 @@ function MMCP.mainLoop()
         end
         activeClients = true
       else
-        MMCP.clients[id] = nil -- Cleanup inactive clients
+        MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:GetNameHostString()))
+        MMCP.clients[id] = nil
+        MMCP.SaveClients()
       end
     end
     if not activeClients then

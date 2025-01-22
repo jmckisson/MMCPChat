@@ -1,1 +1,1 @@
-chatPing(matches[2])
+MMCP.chatPing(matches[2])

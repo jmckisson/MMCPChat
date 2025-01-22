@@ -1,20 +1,13 @@
-# MedUI - A User Interface for Medievia
+# MMCPChat - MudMaster Chat Protocol package for Mudlet
 
-### Authors: Kymbahl and Kronos
+### Author: Kymbahl
 
-### Features
-MedUI is a package for the Medievia MUD which provides a more modern user experience.
-Included in this package is:
-1. External Map window   - This captures the in-game ASCII map and places it in its own window.
-2. Communications Window - This captures common game channels and places them in another window.
-3. Player Vitals Gauges  - Health/Mana/Breath/Movement bars that update from your prompt data.
-4. Buff Bar              - A visual indication of which buffs your player is affected by.
-5. Custom Medievia Font  - A special TrueType font designed for rendering the in-game ASCII map.
+### Information
+MMCPChat is a package which provides an implementation of the MudMaster Chat Protocol (MMCP)
 
-### Configuration
-Most configuration options may be toggled using the 'medui' alias menu (just type medui), such as:
-1. Toggle on/off the gauges display (type: medui gauges)
-2. Toggle showing the inline map (in your main display) (type: medui inlinemap)
-3. Toggle timestamps in the chat window (type: medui timestamp)
-4. Change the map font size (type: medui mapFontSize #)
-5. Change the comm window font size (type: medui chatFontSize #)
+### Commands (Aliases)
+chatCall <addr> [<port>]    - Connects to a client at addr, optional port (default 4050)
+chatName <name>             - Sets your chat name
+chatList                    - Lists all connected chat clients
+chatAll <message>           - Sends a chat to all clients
+chatTo <name|id> <message>  - Sends a chat message to a specific client

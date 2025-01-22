@@ -121,7 +121,7 @@ end
 function Client:DoCall()
 
     local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, MMCP.getLocalIPAddress(), MMCP.options.serverPort)
-    cecho("\n"..callString)
+    --cecho("\n"..callString)
     self.socket:send(callString)
 end
 
@@ -206,7 +206,7 @@ function Client:HandleMessage()
         MMCP.ChatInfoMessage(string.format("Connection to %s at %s successful\n",
             self.name, self.socket:getsockname()))
 
-        self.buffer = self.buffer:sub(string.len(clientName) + 5)
+        self.buffer = self.buffer:sub(string.len(clientName) + 6)
 
         self:SendVersion()
       else

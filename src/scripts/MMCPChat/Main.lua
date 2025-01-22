@@ -1,6 +1,6 @@
 local socket = require("socket.core")
 
-MMCP.defaultOptions = {
+local defaultOptions = {
     chatName = "MudletUser",
     serverPort = 4050,
     prefixNewline = true
@@ -8,7 +8,7 @@ MMCP.defaultOptions = {
 
 MMCP = MMCP or {
   clients = {},
-  options = table.deepcopy(MMCP.defaultOptions),
+  options = table.deepcopy(defaultOptions),
   localAddress = nil,
   version = "Mudlet MMCP __VERSION__"
 }
@@ -123,7 +123,7 @@ function MMCP.LoadOptions()
 
     MMCP.options = table.deepcopy(loadTable.options)
 
-    MMCP.options = MMCP.options or table.deepcopy(MMCP.defaultOptions)
+    MMCP.options = MMCP.options or table.deepcopy(defaultOptions)
 
     MMCP.ChatInfoMessage(string.format("Loaded options for %s", getProfileName()))
 end
@@ -147,7 +147,7 @@ function MMCP.receiveMessages(client)
     while true do
         --echo("MMCP.receiveMessages\n")
         local s, status, partial = client:GetSocket():receive()
-        client:SetBuffer(client:GetBuffer() .. (s or partial or ""))
+        client:SetBuffer(client:GetBuffer() .. (s or partial or "") .. "\n")
         if client:GetBufferLength() > 0 then
             client:HandleMessage()
         end
@@ -207,6 +207,8 @@ function MMCP.chatCall(host, port)
     local tcp = assert(socket.tcp())
     tcp:connect(host, port)
     tcp:settimeout(0) -- Non-blocking
+    tcp:setoption("keepalive", true)
+    tcp:setoption("tcp-nodelay", true)
     local id = #MMCP.clients + 1
 
     local receiverCo = coroutine.create(MMCP.receiveMessages)
@@ -239,6 +241,8 @@ function MMCP.chatAll(message)
         AnsiColors.FBLDRED, message, AnsiColors.StyleReset))
 
     decho(echoMsg)
+
+    raiseEvent("sysMMCPMessage", echoMsg)
 end
 
 
@@ -255,7 +259,12 @@ function MMCP.chatEmoteAll(message)
     local echoMsg = ansi2decho(string.format("%s%s %s%s\n",
         AnsiColors.FBLDRED, MMCP.options.chatName, message, AnsiColors.StyleReset))
 
-    decho(echoMsg)
+    if MMCP.options.prefixNewline then
+        echo("\n")
+    end
+    decho(echoMsg.."\n")
+
+    raiseEvent("sysMMCPMessage", echoMsg)
 end
 
 
@@ -266,7 +275,7 @@ function MMCP.chat(target, message)
         return
     end
 
-    local chatMsg = string.format("%s%s chats to you, '%s'%s",
+    local chatMsg = string.format("%s%s chats to you, '%s'\n%s",
         string.char(MMCP.commands.ChatPersonal), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
 
     client:Send(chatMsg)
@@ -274,7 +283,12 @@ function MMCP.chat(target, message)
     local echoMsg = ansi2decho(string.format("%sYou chat to %s, '%s'%s",
         AnsiColors.FBLDRED, client:GetName(), message, AnsiColors.StyleReset))
 
-    decho(echoMsg)
+    if MMCP.options.prefixNewline then
+        echo("\n")
+    end
+    decho(echoMsg.."\n")
+
+    raiseEvent("sysMMCPMessage", echoMsg)
 end
 
 
@@ -292,6 +306,7 @@ function MMCP.chatName(name)
 
     local echoMsg = string.format("You are now known as %s", name)
     MMCP.ChatInfoMessage(echoMsg)
+    raiseEvent("sysMMCPMessage", AnsiColors.FBLDRED .. echoMsg .. AnsiColors.StyleReset)
 
     MMCP.SaveOptions()
 end

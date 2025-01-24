@@ -2,16 +2,16 @@ local socket = require("socket.core")
 
 Client = Client or {}
 
-function Client:new(id, tcp, host, port, receiver)
+function Client:new(host, port)
     local newObj = {}
     setmetatable(newObj, self)
     self.__index = self
 
-    newObj.id = id
+    newObj.id = -1
     newObj.active = true
-    newObj.socket = tcp
+    newObj.socket = nil
     newObj.buffer = ""
-    newObj.receiverCo = receiver
+    newObj.receiverCo = nil
     newObj.state = ""
     newObj.name = nil
     newObj.host = host
@@ -57,6 +57,10 @@ end
 
 function Client:GetId()
     return self.id
+end
+
+function Client:SetId(val)
+    self.id = val
 end
 
 function Client:GetReceiver()
@@ -191,11 +195,20 @@ function Client:GetNameHostString()
     return string.format("%s@%s", self.name or "<Unknown>", self.host)
 end
 
-function Client:DoCall()
+function Client:ChatCall()
+    self.socket = assert(socket.tcp())
+    self.socket:connect(self.host, self.port)
+    self.socket:settimeout(0) -- Non-blocking
+    self.socket:setoption("keepalive", true)
+    self.socket:setoption("tcp-nodelay", true)
+
+    self:SetState("ConnectingOut")
+
+    self.receiverCo = coroutine.create(MMCP.receiveMessages)
 
     local ip, _ = self.socket:getsockname()
-    local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, MMCP.getLocalIPAddress(), MMCP.options.serverPort)
-    --local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, ip, MMCP.options.serverPort)
+    --local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, MMCP.getLocalIPAddress(), MMCP.options.serverPort)
+    local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, ip, MMCP.options.serverPort)
     --cecho("\n"..callString)
     self.socket:send(callString)
 end

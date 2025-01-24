@@ -199,25 +199,34 @@ function MMCP.getLocalIPAddress()
     end
 end
 
+function MMCP.ReindexClients()
+    for id, client in pairs(MMCP.clients) do
+        client:SetId(id)
+    end
+end
+
 -- Initiates a new client connection
 function MMCP.chatCall(host, port)
+    --[[
     local tcp = assert(socket.tcp())
     tcp:connect(host, port)
     tcp:settimeout(0) -- Non-blocking
     tcp:setoption("keepalive", true)
     tcp:setoption("tcp-nodelay", true)
-    local id = #MMCP.clients + 1
-
+    
     local receiverCo = coroutine.create(MMCP.receiveMessages)
+    --]]
 
-    local client = Client:new(id, tcp, host, port, receiverCo)
-    client:SetState("ConnectingOut")
+    local client = Client:new(host, port)
 
-    MMCP.clients[id] = client
+    table.insert(MMCP.clients, client)
+
+    local id = table.index_of(MMCP.clients, client)
+    MMCP.ReindexClients()
+
+    client:ChatCall()
 
     MMCP.SaveClients()
-
-    client:DoCall()
 
     return id
 end
@@ -418,7 +427,8 @@ function MMCP.mainLoop()
 
       else
         MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:GetNameHostString()))
-        MMCP.clients[id] = nil
+        table.remove(MMCP.clients, client:GetId())
+        MMCP.ReindexClients()
         modifiedClients = true
       end
     end

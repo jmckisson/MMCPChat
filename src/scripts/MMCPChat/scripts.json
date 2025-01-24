@@ -8,5 +8,10 @@
               "name": "Main",
               "isActive": "yes",
               "isFolder": "no"
+       },
+       {
+              "name": "Window",
+              "isActive": "yes",
+              "isFolder": "no"
        }
 ]

@@ -207,15 +207,6 @@ end
 
 -- Initiates a new client connection
 function MMCP.chatCall(host, port)
-    --[[
-    local tcp = assert(socket.tcp())
-    tcp:connect(host, port)
-    tcp:settimeout(0) -- Non-blocking
-    tcp:setoption("keepalive", true)
-    tcp:setoption("tcp-nodelay", true)
-    
-    local receiverCo = coroutine.create(MMCP.receiveMessages)
-    --]]
 
     local client = Client:new(host, port)
 
@@ -226,6 +217,7 @@ function MMCP.chatCall(host, port)
 
     client:ChatCall()
 
+    MMCP.UpdateConsole()
     MMCP.SaveClients()
 
     return id
@@ -429,6 +421,7 @@ function MMCP.mainLoop()
         MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:GetNameHostString()))
         table.remove(MMCP.clients, client:GetId())
         MMCP.ReindexClients()
+        MMCP.UpdateConsole()
         modifiedClients = true
       end
     end

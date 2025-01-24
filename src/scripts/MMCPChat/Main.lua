@@ -145,9 +145,8 @@ end
 function MMCP.receiveMessages(client)
 
     while true do
-        --echo("MMCP.receiveMessages\n")
-        local s, status, partial = client:GetSocket():receive()
-        client:SetBuffer(client:GetBuffer() .. (s or partial or "") .. "\n")
+        local s, status, partial = client:GetSocket():receive("*a")
+        client:SetBuffer(client:GetBuffer() .. (s or partial or "") .. "")
         if client:GetBufferLength() > 0 then
             client:HandleMessage()
         end
@@ -158,7 +157,6 @@ function MMCP.receiveMessages(client)
             coroutine.yield(client)
         end
 
-      --echo("Client resumed\n")
     end
 
 end
@@ -189,7 +187,6 @@ end
 
 function MMCP.getLocalIPAddress()
     if not MMCP.localAddress then
-        -- Create a UDP socket
         local udp = socket.udp()
         -- Temporarily connect to a public DNS server (Google's) to determine the local IP
         udp:setpeername("8.8.8.8", 80)
@@ -292,6 +289,23 @@ function MMCP.chat(target, message)
 end
 
 
+function MMCP.chatIgnore(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local isIgnored = client:IsIgnored()
+
+    client:SetIgnored(not isIgnored)
+
+    MMCP.ChatInfoMessage(string.format("Set %s to %s",
+        client:GetName(), isIgnored and "not ignored" or "ignored"))
+
+end
+
+
 function MMCP.chatName(name)
     MMCP.options.chatName = name
 
@@ -328,6 +342,40 @@ function MMCP.chatPing(target)
 end
 
 
+function MMCP.chatPrivate(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local isPrivate = client:IsPrivate()
+
+    client:SetPrivate(not isPrivate)
+
+    MMCP.ChatInfoMessage(string.format("Set %s to %s",
+        client:GetName(), isPrivate and "not private" or "private"))
+
+end
+
+
+function MMCP.chatServe(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local isServed = client:IsServed()
+
+    client:SetServed(not isServed)
+
+    MMCP.ChatInfoMessage(string.format("Set %s to %s",
+        client:GetName(), isServed and "not served" or "served"))
+
+end
+
+
 function MMCP.chatUnChat(target)
     local client = MMCP.GetClientByNameOrId(target)
 
@@ -340,34 +388,49 @@ function MMCP.chatUnChat(target)
     client:SetActive(false)
 
     -- client table will get cleaned up in mainLoop
-    --MMCP.clients[client:GetId()] = nil
 end
 
+
+function MMCP.SendServedMessage(sender, msg, isServed)
+    local outMsg = string.format("%s%s%s",
+        string.char(MMCP.commands.ChatEverybody), msg, string.char(MMCP.commands.EndOfCommand))
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() and client ~= sender and (not isServed and client:IsServed()) then
+            client:Send(outMsg)
+        end
+    end
+end
 
 
 function MMCP.mainLoop()
   while true do
-    --echo("MMCP.mainLoop\n")
+    local modifiedClients = false
     local activeClients = false
     for id, client in pairs(MMCP.clients) do
       if client:IsActive() then
-        --echo("Resuming client " .. id .. "\n")
         local success, err = coroutine.resume(client:GetReceiver(), client)
         if not success then
           echo("Error resuming client coroutine: " .. err .. "\n")
           client:SetActive(false)
         end
         activeClients = true
+
       else
         MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:GetNameHostString()))
         MMCP.clients[id] = nil
-        MMCP.SaveClients()
+        modifiedClients = true
       end
     end
-    if not activeClients then
-      -- No active clients, can choose to exit or yield for a longer period
-      coroutine.yield()
+
+    if modifiedClients then
+        MMCP.SaveClients()
     end
+
+    if activeClients then
+        coroutine.yield()
+    end
+
     coroutine.yield() -- Yield after each full cycle of client checks
   end
 end

@@ -13,11 +13,16 @@ function Client:new(id, tcp, host, port, receiver)
     newObj.buffer = ""
     newObj.receiverCo = receiver
     newObj.state = ""
-    newObj.name = "MudletUser"
+    newObj.name = nil
     newObj.host = host
     newObj.port = port
     newObj.version = ""
     newObj.group = "None"
+    newObj.isPrivate = false
+    newObj.isServed = false
+    newObj.isIgnored = false
+    newObj.isSnooping = false
+    newObj.isSnoopEnabled = false
 
     return newObj
 end
@@ -54,14 +59,6 @@ function Client:GetId()
     return self.id
 end
 
-function Client:GetInfoString()
-    local flagStr = ""
-    local infoStr = string.format("%-20s %-20s %-5d %-15s %-8s %s",
-      self.name, self.host, self.port, self.group, flagStr, self.version)
-
-    return infoStr
-end
-
 function Client:GetReceiver()
     return self.receiverCo
 end
@@ -80,10 +77,6 @@ end
 
 function Client:SetState(val)
     self.state = val
-end
-
-function Client:GetNameHostString()
-    return string.format("%s@%s", self.name or "<Unknown>", self.host)
 end
 
 function Client:GetName()
@@ -114,13 +107,95 @@ function Client:SetVersion(val)
     self.version = val
 end
 
+function Client:IsPrivate()
+    return self.isPrivate
+end
+
+function Client:SetPrivate(val)
+    self.isPrivate = val
+end
+
+function Client:IsServed()
+    return self.isServed
+end
+
+function Client:SetServed(val)
+    self.isServed = val
+end
+
+function Client:IsIgnored()
+    return self.isIgnored
+end
+
+function Client:SetIgnored(val)
+    self.isIgnored = val
+end
+
+function Client:IsSnooping()
+    return self.isSnooping
+end
+
+function Client:SetSnooping(val)
+    self.isSnooping = val
+end
+
+function Client:IsSnoopEnabled()
+    return self.isSnoopEnabled
+end
+
+function Client:SetSnoopEnabled(val)
+    self.isSnoopEnabled = val
+end
+
 function Client:Send(buf)
     self.socket:send(buf)
 end
 
+function Client:GetFlagsString()
+
+    local isFirewalled = false
+    if self.socket:getsockname() ~= self.host then
+        isFirewalled = true
+    end
+
+    local snoopVal = ' '
+    if self.isSnooping then
+        snoopVal = 'N'
+    else
+        if self.isSnoopEnabled then
+            snoopVal = 'n'
+        end
+    end
+
+    return string.format("%s%s%s%s%s%s%s%s",
+        ' ',
+        ' ',
+        self.isPrivate and 'P' or ' ',
+        self.isIgnored and 'I' or ' ',
+        self.isServed and 'S' or ' ',
+        isFirewalled and 'F' or ' ',
+        snoopVal,
+        ' '
+    )
+end
+
+function Client:GetInfoString()
+    local flagStr = self:GetFlagsString()
+    local infoStr = string.format("%-20s %-20s %-5d %-15s %-8s %s",
+      self.name, self.host, self.port, self.group, flagStr, self.version)
+
+    return infoStr
+end
+
+function Client:GetNameHostString()
+    return string.format("%s@%s", self.name or "<Unknown>", self.host)
+end
+
 function Client:DoCall()
 
+    local ip, _ = self.socket:getsockname()
     local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, MMCP.getLocalIPAddress(), MMCP.options.serverPort)
+    --local callString = string.format("CHAT:%s\n%s%-5d", MMCP.options.chatName, ip, MMCP.options.serverPort)
     --cecho("\n"..callString)
     self.socket:send(callString)
 end
@@ -149,15 +224,28 @@ function Client:HandleConnectedState()
         self:SetName(payload)
 
     elseif msgType == MMCP.commands.ChatEverybody then      -- chat everybody
+        if self.isIgnored then
+            return
+        end
+
         local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload .. AnsiColors.StyleReset)
         if MMCP.options.prefixNewline then
             echo("\n")
         end
         decho(ansiMsg.."\n")
         raiseEvent("sysMMCPMessage", ansiMsg)
-        -- Check if we're serving this person
+
+        -- Forward served message if this client isnt private
+        if not self.isPrivate then
+            MMCP.SendServedMessage(self, ansiMsg, self:IsServed())
+        end
+
 
     elseif msgType == MMCP.commands.ChatPersonal then  -- personal chat
+        if self.isIgnored then
+            return
+        end
+
         local ansiMsg = ansi2decho(AnsiColors.FBLDRED .. payload .. AnsiColors.StyleReset)
         if MMCP.options.prefixNewline then
             echo("\n")
@@ -171,7 +259,6 @@ function Client:HandleConnectedState()
         raiseEvent("sysMMCPMessage", ansiMsg)
 
     elseif msgType == MMCP.commands.Version then
-        --echo("Got version from " .. self.name .. " : " .. payload .. "\n")
         self.version = payload
 
     elseif msgType == MMCP.commands.PingRequest then
@@ -187,6 +274,7 @@ function Client:HandleConnectedState()
             self.name, pingTime))
     else
         echo("Unknown message type " .. msgType .. " received from " .. self.name .. "\n")
+        hexDump(payload)
     end
 
 end
@@ -206,6 +294,7 @@ function Client:HandleMessage()
         MMCP.ChatInfoMessage(string.format("Connection to %s at %s successful\n",
             self.name, self.socket:getsockname()))
 
+        -- skip past the negotiation string
         self.buffer = self.buffer:sub(string.len(clientName) + 6)
 
         self:SendVersion()

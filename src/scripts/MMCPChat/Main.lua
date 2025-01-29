@@ -13,21 +13,9 @@ MMCP = MMCP or {
   version = "Mudlet MMCP __VERSION__"
 }
 
-MMCP.commands = {
-    NameChange = 1,
-    RequestConnections = 2,
-    ConnectionList = 3,
-    ChatEverybody = 4,
-    ChatPersonal = 5,
-    ChatGroup = 6,
-    ChatMessage = 7,
-    DoNotDisturb = 8,
-    Version = 19,
-    PingRequest = 26,
-    PingResponse = 27,
-    PeekConnections = 28,
-    PeekList = 29,
-    EndOfCommand = 255
+MMCP.colors = {
+    StyleReset = "\27[0m",
+    ForeBoldRed = "\27[1;31m"
 }
 
 function MMCP.ChatInfoMessage(message)
@@ -72,7 +60,7 @@ function MMCP.GetClientByNameOrId(target)
     for id, client in pairs(MMCP.clients) do
         if numeric and numeric == id then
             return client
-        elseif string.lower(client:GetName()) == string.lower(target) then
+        elseif string.lower(client:GetProperty("name")) == string.lower(target) then
             return client
         end
     end
@@ -104,7 +92,7 @@ function MMCP.SaveClients()
 
     for id, client in pairs(MMCP.clients) do
         if client:IsActive() then
-            table.insert(saveTable, {host=client:GetHost(), port=client:GetPort(), group=client:GetGroup()})
+            table.insert(saveTable, {host=client:Host(), port=client:Port(), group=client:GetProperty("group")})
         end
     end
 
@@ -145,9 +133,10 @@ end
 function MMCP.receiveMessages(client)
 
     while true do
-        local s, status, partial = client:GetSocket():receive("*a")
-        client:SetBuffer(client:GetBuffer() .. (s or partial or "") .. "")
-        if client:GetBufferLength() > 0 then
+        echo("MMCP.receiveMessages()\n")
+        local s, status, partial = client:Socket():receive("*a")
+        client:BufferAppend((s or partial or "") .. "")
+        if client:BufferLength() > 0 then
             client:HandleMessage()
         end
         if status == "closed" then 
@@ -172,7 +161,7 @@ Id   Name                 Address              Port  Group           Flags    Ch
     echo("\n")
 
     for id, client in pairs(MMCP.clients) do
-        cecho(string.format("%s%-4d %s%s\n", "<green>", id, "<reset>", client:GetInfoString()))
+        cecho(string.format("%s%-4d %s%s\n", "<green>", id, "<reset>", client:InfoString()))
     end
 
     cecho(string.format(
@@ -205,29 +194,25 @@ function MMCP.ReindexClients()
     end
 end
 
+
 -- Initiates a new client connection
 function MMCP.chatCall(host, port)
 
-    local client = Client:new(host, port)
+    local client = Client.new(host, port)
 
     table.insert(MMCP.clients, client)
 
-    local id = table.index_of(MMCP.clients, client)
+    --local id = table.index_of(MMCP.clients, client)
     MMCP.ReindexClients()
 
     client:ChatCall()
-
-    MMCP.UpdateConsole()
-    MMCP.SaveClients()
-
-    return id
 end
 
 
 function MMCP.chatAll(message)
 
     local outMsg = string.format("%s%s chats to everybody, '%s'%s",
-        string.char(MMCP.commands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+        string.char(MMCPCommands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCPCommands.EndOfCommand))
 
     for id, client in pairs(MMCP.clients) do
         if client:IsActive() then
@@ -236,7 +221,7 @@ function MMCP.chatAll(message)
     end
 
     local echoMsg = ansi2decho(string.format("%sYou chat to everybody, '%s'%s\n",
-        AnsiColors.FBLDRED, message, AnsiColors.StyleReset))
+    MMCP.colors.ForeBoldRed, message, MMCP.colors.StyleReset))
 
     decho(echoMsg)
 
@@ -246,7 +231,7 @@ end
 
 function MMCP.chatEmoteAll(message)
     local outMsg = string.format("%s%s %s%s",
-        string.char(MMCP.commands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+        string.char(MMCPCommands.ChatEverybody), MMCP.options.chatName, message, string.char(MMCPCommands.EndOfCommand))
 
     for id, client in pairs(MMCP.clients) do
         if client:IsActive() then
@@ -255,7 +240,7 @@ function MMCP.chatEmoteAll(message)
     end
 
     local echoMsg = ansi2decho(string.format("%s%s %s%s\n",
-        AnsiColors.FBLDRED, MMCP.options.chatName, message, AnsiColors.StyleReset))
+        MMCP.colors.ForeBoldRed, MMCP.options.chatName, message, MMCP.colors.StyleReset))
 
     if MMCP.options.prefixNewline then
         echo("\n")
@@ -274,12 +259,12 @@ function MMCP.chat(target, message)
     end
 
     local chatMsg = string.format("%s%s chats to you, '%s'\n%s",
-        string.char(MMCP.commands.ChatPersonal), MMCP.options.chatName, message, string.char(MMCP.commands.EndOfCommand))
+        string.char(MMCPCommands.ChatPersonal), MMCP.options.chatName, message, string.char(MMCPCommands.EndOfCommand))
 
     client:Send(chatMsg)
 
     local echoMsg = ansi2decho(string.format("%sYou chat to %s, '%s'%s",
-        AnsiColors.FBLDRED, client:GetName(), message, AnsiColors.StyleReset))
+        MMCP.colors.ForeBoldRed, client:GetProperty("name"), message, MMCP.colors.StyleReset))
 
     if MMCP.options.prefixNewline then
         echo("\n")
@@ -297,12 +282,12 @@ function MMCP.chatIgnore(target)
         return
     end
 
-    local isIgnored = client:IsIgnored()
+    local isIgnored = client:GetProperty("ignored")
 
     client:SetIgnored(not isIgnored)
 
     MMCP.ChatInfoMessage(string.format("Set %s to %s",
-        client:GetName(), isIgnored and "not ignored" or "ignored"))
+        client:GetProperty("name"), isIgnored and "not ignored" or "ignored"))
 
 end
 
@@ -311,7 +296,7 @@ function MMCP.chatName(name)
     MMCP.options.chatName = name
 
     local nameMsg = string.format("%s%s%s",
-        string.char(MMCP.commands.NameChange), name, string.char(MMCP.commands.EndOfCommand))
+        string.char(MMCPCommands.NameChange), name, string.char(MMCPCommands.EndOfCommand))
 
     for id, client in pairs(MMCP.clients) do
         if client:IsActive() then
@@ -321,7 +306,7 @@ function MMCP.chatName(name)
 
     local echoMsg = string.format("You are now known as %s", name)
     MMCP.ChatInfoMessage(echoMsg)
-    raiseEvent("sysMMCPMessage", AnsiColors.FBLDRED .. echoMsg .. AnsiColors.StyleReset)
+    raiseEvent("sysMMCPMessage", MMCP.colors.ForeBoldRed .. echoMsg .. MMCP.colors.StyleReset)
 
     MMCP.SaveOptions()
 end
@@ -334,12 +319,7 @@ function MMCP.chatPing(target)
         return
     end
 
-    local pingMsg = string.format("%s%s%s",
-        string.char(MMCP.commands.PingRequest), socket.gettime(), string.char(MMCP.commands.EndOfCommand))
-
-    client:Send(pingMsg)
-
-    MMCP.ChatInfoMessage(string.format("Pinging %s...", client:GetName()))
+    client:Ping()
 end
 
 
@@ -350,12 +330,12 @@ function MMCP.chatPrivate(target)
         return
     end
 
-    local isPrivate = client:IsPrivate()
+    local isPrivate = client:GetProperty("private")
 
     client:SetPrivate(not isPrivate)
 
     MMCP.ChatInfoMessage(string.format("Set %s to %s",
-        client:GetName(), isPrivate and "not private" or "private"))
+        client:GetProperty("name"), isPrivate and "not private" or "private"))
 
 end
 
@@ -367,13 +347,29 @@ function MMCP.chatServe(target)
         return
     end
 
-    local isServed = client:IsServed()
+    local isServed = client:GetProperty("served")
 
     client:SetServed(not isServed)
 
     MMCP.ChatInfoMessage(string.format("Set %s to %s",
-        client:GetName(), isServed and "not served" or "served"))
+        client:GetProperty("name"), isServed and "not served" or "served"))
 
+end
+
+
+function MMCP.chatServeExclude(target)
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        return
+    end
+
+    local isServeExcluded = client:GetProperty("serveExcluded")
+
+    client:SetServeExcluded(not isServeExcluded)
+
+    MMCP.ChatInfoMessage(string.format("Set %s to %s",
+        client:GetProperty("name"), isServeExcluded and "not serve excluded" or "serve excluded"))
 end
 
 
@@ -384,9 +380,7 @@ function MMCP.chatUnChat(target)
         return
     end
 
-    client:GetSocket():close()
-    client:SetState("Closed")
-    client:SetActive(false)
+    client:UnChat()
 
     -- client table will get cleaned up in mainLoop
 end
@@ -394,7 +388,7 @@ end
 
 function MMCP.SendServedMessage(sender, msg, isServed)
     local outMsg = string.format("%s%s%s",
-        string.char(MMCP.commands.ChatEverybody), msg, string.char(MMCP.commands.EndOfCommand))
+        string.char(MMCPCommands.ChatEverybody), msg, string.char(MMCPCommands.EndOfCommand))
 
     for id, client in pairs(MMCP.clients) do
         if client:IsActive() and client ~= sender and (not isServed and client:IsServed()) then
@@ -410,7 +404,7 @@ function MMCP.mainLoop()
     local activeClients = false
     for id, client in pairs(MMCP.clients) do
       if client:IsActive() then
-        local success, err = coroutine.resume(client:GetReceiver(), client)
+        local success, err = coroutine.resume(client:Receiver(), client)
         if not success then
           echo("Error resuming client coroutine: " .. err .. "\n")
           client:SetActive(false)
@@ -418,7 +412,7 @@ function MMCP.mainLoop()
         activeClients = true
 
       else
-        MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:GetNameHostString()))
+        MMCP.ChatInfoMessage(string.format("Connection to %s lost\n", client:NameHostString()))
         table.remove(MMCP.clients, client:GetId())
         MMCP.ReindexClients()
         MMCP.UpdateConsole()

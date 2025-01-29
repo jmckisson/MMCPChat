@@ -1,5 +1,10 @@
 [
        {
+              "name": "Constants",
+              "isActive": "yes",
+              "isFolder": "no"
+       },
+       {
               "name": "Client",
               "isActive": "yes",
               "isFolder": "no"

@@ -1,4 +1,5 @@
-local socket = require("socket.core")
+local os = "winx64"
+local socket = require(os..".socket.core")
 
 local defaultOptions = {
     chatName = "MudletUser",
@@ -15,6 +16,7 @@ MMCP = MMCP or {
 
 MMCP.colors = {
     StyleReset = "\27[0m",
+    ForeBoldCyan = "\27[1;36m",
     ForeBoldRed = "\27[1;31m"
 }
 
@@ -370,6 +372,64 @@ function MMCP.chatServeExclude(target)
 
     MMCP.ChatInfoMessage(string.format("Set %s to %s",
         client:GetProperty("name"), isServeExcluded and "not serve excluded" or "serve excluded"))
+end
+
+
+function MMCP.chatSetGroup(target, group)
+
+    local client = MMCP.GetClientByNameOrId(target)
+
+    if not client then
+        MMCP.ChatInfoMessage(string.format("Invalid client id '%s'.", target))
+        return
+    end
+
+    local currentGroup = client:GetProperty("group")
+
+    if currentGroup == group then
+        -- remove them from the group
+        client:SetProperty("group", "None")
+        MMCP.ChatInfoMessage(string.format("Removed '%s' from group '%s'.",
+            client:GetProperty("name"), group))
+    else
+        client:SetProperty("group", group)
+        MMCP.ChatInfoMessage(string.format("Assigned '%s' to group '%s'.",
+            client:GetProperty("name"), group))
+    end
+end
+
+function MMCP.chatToGroup(group, message)
+
+
+    local outMsg = string.format("%s%-15s\n%s%s chats to the group, '%s'\n%s",
+        MMCPCommands.ChatGroup,
+        group,
+        MMCP.options.chatName, MMCP.colors.ForeBoldRed, message,
+        MMCPCommands.EndOfCommand)
+
+    local groupNotEmpty = false;
+
+    for id, cl in pairs(MMCP.clients) do
+        if cl:GetProperty("group") == group then
+            groupNotEmpty = true
+            cl:Send(outMsg)
+        end
+    end
+
+    local echoMsg = ""
+
+    if groupNotEmpty then
+        echoMsg = string.format("%s%sYou chat to %s<%s>%s, '%s'%s",
+           MMCP.colors.ForeBoldRed, "", MMCP.colors.ForeBoldCyan,
+           group, message, MMCP.colors.StyleReset)
+    else
+        echoMsg = string.format("%s%sYou try to chat to <%s%s%s> but it is empty and no-one hears you say: '%s'%s",
+            MMCP.colors.ForeBoldRed, "", MMCP.colors.ForeBoldCyan,
+            group, message, MMCP.colors.StyleReset)
+    end
+
+    decho(ansi2decho(echoMsg))
+
 end
 
 

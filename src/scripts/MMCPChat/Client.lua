@@ -1,4 +1,5 @@
-local socket = require("socket.core")
+local os = "winx64"
+local socket = require(os..".socket.core")
 
 Client = {}
 

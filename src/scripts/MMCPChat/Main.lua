@@ -135,7 +135,7 @@ end
 function MMCP.receiveMessages(client)
 
     while true do
-        echo("MMCP.receiveMessages()\n")
+        --echo("MMCP.receiveMessages()\n")
         local s, status, partial = client:Socket():receive("*a")
         client:BufferAppend((s or partial or "") .. "")
         if client:BufferLength() > 0 then

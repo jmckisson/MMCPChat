@@ -1,1 +1,1 @@
-chatSetGroup(matches[2], matches[3])
+MMCP.chatSetGroup(matches[2], matches[3])

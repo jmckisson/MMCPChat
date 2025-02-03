@@ -1,6 +1,3 @@
-local os = "winx64"
-local socket = require(os..".socket.core")
-
 local defaultOptions = {
     chatName = "MudletUser",
     serverPort = 4050,
@@ -11,7 +8,8 @@ MMCP = MMCP or {
   clients = {},
   options = table.deepcopy(defaultOptions),
   localAddress = nil,
-  version = "Mudlet MMCP __VERSION__"
+  version = "Mudlet MMCP __VERSION__",
+  initError = false
 }
 
 MMCP.colors = {
@@ -22,6 +20,25 @@ MMCP.colors = {
 
 function MMCP.ChatInfoMessage(message)
     cecho(string.format("\n<yellow>[ CHAT ]  - <green>%s<reset>\n", message))
+end
+
+local socket = nil
+local platform, ver = getOS()
+if platform == "windows" then
+    socket = require("winx64.socket.core")
+elseif platform == "mac" then
+    -- try arm first
+    socket = require("macarm64.socket.core")
+    if not socket then
+        socket = require("macx64.socket.core")
+    end
+elseif platform == "linux" then
+    socket = require("linuxx64.socket.core")
+end
+
+if not socket then
+    MMCP.ChatInfoMessage("Error loading socket library")
+    MMCP.initError = true
 end
 
 
@@ -492,25 +509,25 @@ function MMCP.mainLoop()
   end
 end
 
+if not MMCP.initError then
+    local mainLoopCo = coroutine.create(MMCP.mainLoop)
 
-local mainLoopCo = coroutine.create(MMCP.mainLoop)
+    -- Function to periodically resume the main loop coroutine
+    function MMCP.manageMainLoop()
+        if coroutine.status(mainLoopCo) ~= "dead" then
+            coroutine.resume(mainLoopCo)
+            -- Here, you're free to do other tasks, then loop back to resume the mainLoop coroutine
+            -- Adjust the delay to balance responsiveness with efficiency
+            socket.select(nil, nil, 0.001) -- Sleep briefly to reduce CPU usage
+        end
+    end
 
--- Function to periodically resume the main loop coroutine
-function MMCP.manageMainLoop()
-  --cecho("\nmanageMainLoop")
-  if coroutine.status(mainLoopCo) ~= "dead" then
-    coroutine.resume(mainLoopCo)
-    -- Here, you're free to do other tasks, then loop back to resume the mainLoop coroutine
-    -- Adjust the delay to balance responsiveness with efficiency
-    socket.select(nil, nil, 0.001) -- Sleep briefly to reduce CPU usage
-  end
+
+    if MMCP.socketTimer then
+    killTimer(MMCP.socketTimer)
+    end
+
+    MMCP.socketTimer = tempTimer(.1, function() MMCP.manageMainLoop() end, true)
+
+    MMCP.LoadOptions()
 end
-
-
-if MMCP.socketTimer then
-  killTimer(MMCP.socketTimer)
-end
-
-MMCP.socketTimer = tempTimer(.1, function() MMCP.manageMainLoop() end, true)
-
-MMCP.LoadOptions()

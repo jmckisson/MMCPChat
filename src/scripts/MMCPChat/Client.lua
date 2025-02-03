@@ -1,5 +1,16 @@
-local os = "winx64"
-local socket = require(os..".socket.core")
+local socket = nil
+local platform, ver = getOS()
+if platform == "windows" then
+    socket = require("winx64.socket.core")
+elseif platform == "mac" then
+    -- try arm first
+    socket = require("macarm64.socket.core")
+    if not socket then
+        socket = require("macx64.socket.core")
+    end
+elseif platform == "linux" then
+    socket = require("linuxx64.socket.core")
+end
 
 Client = {}
 

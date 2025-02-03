@@ -1,15 +1,20 @@
 local socket = nil
 local platform, ver = getOS()
 if platform == "windows" then
-    socket = require("winx64.socket.core")
+    package.cpath = package.cpath .. ";./MMCPChat/winx64/?.dll"
+    socket = require("socket.core")
 elseif platform == "mac" then
     -- try arm first
-    socket = require("macarm64.socket.core")
+    local cpathOrig = package.cpath
+    package.cpath = package.cpath .. ";./MMCPChat/macarm64/?.dll"
+    socket = require("socket.core")
     if not socket then
-        socket = require("macx64.socket.core")
+        package.cpath = cpathOrig .. ";./MMCPChat/macx64/?.dll"
+        socket = require("socket.core")
     end
 elseif platform == "linux" then
-    socket = require("linuxx64.socket.core")
+    package.cpath = package.cpath .. ";./MMCPChat/linuxx64/?.dll"
+    socket = require("socket.core")
 end
 
 Client = {}

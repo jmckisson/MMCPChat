@@ -1,21 +1,4 @@
-local socket = nil
-local platform, ver = getOS()
-if platform == "windows" then
-    package.cpath = package.cpath .. ";./MMCPChat/winx64/?.dll"
-    socket = require("socket.core")
-elseif platform == "mac" then
-    -- try arm first
-    local cpathOrig = package.cpath
-    package.cpath = package.cpath .. ";./MMCPChat/macarm64/?.dll"
-    socket = require("socket.core")
-    if not socket then
-        package.cpath = cpathOrig .. ";./MMCPChat/macx64/?.dll"
-        socket = require("socket.core")
-    end
-elseif platform == "linux" then
-    package.cpath = package.cpath .. ";./MMCPChat/linuxx64/?.dll"
-    socket = require("socket.core")
-end
+local socket = InitMMCPSocketLib()
 
 Client = {}
 
@@ -209,7 +192,7 @@ function Client:HandleChatEverybody(payload)
         return
     end
 
-    local ansiMsg = ansi2decho(MMCP.colors.ForeBoldRed .. payload .. MMCP.colors.StyleReset)
+    local ansiMsg = ansi2decho(MMCPColors.ForeBoldRed .. payload .. MMCPColors.StyleReset)
     if MMCP.options.prefixNewline then
         echo("\n")
     end
@@ -228,7 +211,7 @@ function Client:HandleChatPersonal(payload)
         return
     end
 
-    local ansiMsg = ansi2decho(MMCP.colors.ForeBoldRed .. payload .. MMCP.colors.StyleReset)
+    local ansiMsg = ansi2decho(MMCPColors.ForeBoldRed .. payload .. MMCPColors.StyleReset)
     if MMCP.options.prefixNewline then
         echo("\n")
     end
@@ -244,6 +227,14 @@ end
 
 function Client:HandleChatVersion(payload)
     self.properties.version = payload
+end
+
+function Client:HandleSideChannel(payload)
+    local channel, message = payload:match("^(%S+),(%S+)")
+
+    if channel and message then
+        raiseEvent("sysChatChannelMessage", self.properties.name, channel, message)
+    end
 end
 
 
@@ -306,6 +297,7 @@ function Client:HandleMessage()
 end
 
 
+
 function Client:SendVersion()
 
     local versionMsg = string.format("%s%s%s",
@@ -323,4 +315,5 @@ MMCPHandlers = {
     [MMCPCommands.PingRequest]     = Client.HandlePingRequest,
     [MMCPCommands.PingResponse]    = Client.HandlePingResponse,
     [MMCPCommands.Version]         = Client.HandleChatVersion,
+    [MMCPCommands.SideChannel]     = Client.HandleSideChannel
 }

@@ -1,45 +1,17 @@
-local defaultOptions = {
-    chatName = "MudletUser",
-    serverPort = 4050,
-    prefixNewline = true
-}
-
 MMCP = MMCP or {
   clients = {},
-  options = table.deepcopy(defaultOptions),
+  options = table.deepcopy(MMCPDefaultOptions),
   localAddress = nil,
   version = "Mudlet MMCP __VERSION__",
   initError = false
 }
 
-MMCP.colors = {
-    StyleReset = "\27[0m",
-    ForeBoldCyan = "\27[1;36m",
-    ForeBoldRed = "\27[1;31m"
-}
 
 function MMCP.ChatInfoMessage(message)
     cecho(string.format("\n<yellow>[ CHAT ]  - <green>%s<reset>\n", message))
 end
 
-local socket = nil
-local platform, ver = getOS()
-if platform == "windows" then
-    package.cpath = package.cpath .. ";./MMCPChat/winx64/?.dll"
-    socket = require("socket.core")
-elseif platform == "mac" then
-    -- try arm first
-    local cpathOrig = package.cpath
-    package.cpath = package.cpath .. ";./MMCPChat/macarm64/?.dll"
-    socket = require("socket.core")
-    if not socket then
-        package.cpath = cpathOrig .. ";./MMCPChat/macx64/?.dll"
-        socket = require("socket.core")
-    end
-elseif platform == "linux" then
-    package.cpath = package.cpath .. ";./MMCPChat/linuxx64/?.dll"
-    socket = require("socket.core")
-end
+local socket = InitMMCPSocketLib()
 
 if not socket then
     MMCP.ChatInfoMessage("Error loading socket library")
@@ -135,7 +107,7 @@ function MMCP.LoadOptions()
 
     MMCP.options = table.deepcopy(loadTable.options)
 
-    MMCP.options = MMCP.options or table.deepcopy(defaultOptions)
+    MMCP.options = MMCP.options or table.deepcopy(MMCPDefaultOptions)
 
     MMCP.ChatInfoMessage(string.format("Loaded options for %s", getProfileName()))
 end
@@ -222,11 +194,19 @@ end
 -- Initiates a new client connection
 function MMCP.chatCall(host, port)
 
+    if not MMCP.chatName or MMCP.chatName == "" then
+        MMCP.ChatInfoMessage("You do not have a chat name set, type chatName <name> to set one!")
+        return
+    end
+
+    if MMCP.chatName == "MudletUser" then
+        MMCP.ChatInfoMessage("You are using the default chatname MudletUser, consider using the chatName command to set a new one...")
+    end
+
     local client = Client.new(host, port)
 
     table.insert(MMCP.clients, client)
 
-    --local id = table.index_of(MMCP.clients, client)
     MMCP.ReindexClients()
 
     client:ChatCall()
@@ -245,7 +225,7 @@ function MMCP.chatAll(message)
     end
 
     local echoMsg = ansi2decho(string.format("%sYou chat to everybody, '%s'%s\n",
-    MMCP.colors.ForeBoldRed, message, MMCP.colors.StyleReset))
+    MMCPColors.ForeBoldRed, message, MMCPColors.StyleReset))
 
     decho(echoMsg)
 
@@ -264,7 +244,7 @@ function MMCP.chatEmoteAll(message)
     end
 
     local echoMsg = ansi2decho(string.format("%s%s %s%s\n",
-        MMCP.colors.ForeBoldRed, MMCP.options.chatName, message, MMCP.colors.StyleReset))
+        MMCPColors.ForeBoldRed, MMCP.options.chatName, message, MMCPColors.StyleReset))
 
     if MMCP.options.prefixNewline then
         echo("\n")
@@ -288,7 +268,7 @@ function MMCP.chat(target, message)
     client:Send(chatMsg)
 
     local echoMsg = ansi2decho(string.format("%sYou chat to %s, '%s'%s",
-        MMCP.colors.ForeBoldRed, client:GetProperty("name"), message, MMCP.colors.StyleReset))
+        MMCPColors.ForeBoldRed, client:GetProperty("name"), message, MMCPColors.StyleReset))
 
     if MMCP.options.prefixNewline then
         echo("\n")
@@ -330,7 +310,7 @@ function MMCP.chatName(name)
 
     local echoMsg = string.format("You are now known as %s", name)
     MMCP.ChatInfoMessage(echoMsg)
-    raiseEvent("sysMMCPMessage", MMCP.colors.ForeBoldRed .. echoMsg .. MMCP.colors.StyleReset)
+    raiseEvent("sysMMCPMessage", MMCPColors.ForeBoldRed .. echoMsg .. MMCPColors.StyleReset)
 
     MMCP.SaveOptions()
 end
@@ -360,6 +340,19 @@ function MMCP.chatPrivate(target)
 
     MMCP.ChatInfoMessage(string.format("Set %s to %s",
         client:GetProperty("name"), isPrivate and "not private" or "private"))
+
+end
+
+
+function MMCP.chatSideChannel(channel, message)
+    local outMsg = string.format("%s%s,%s%s",
+        string.char(MMCPCommands.SideChannel), channel, message, string.char(MMCPCommands.EndOfCommand))
+
+    for id, client in pairs(MMCP.clients) do
+        if client:IsActive() then
+            client:Send(outMsg)
+        end
+    end
 
 end
 
@@ -422,11 +415,10 @@ end
 
 function MMCP.chatToGroup(group, message)
 
-
     local outMsg = string.format("%s%-15s\n%s%s chats to the group, '%s'\n%s",
         MMCPCommands.ChatGroup,
         group,
-        MMCP.options.chatName, MMCP.colors.ForeBoldRed, message,
+        MMCP.options.chatName, MMCPColors.ForeBoldRed, message,
         MMCPCommands.EndOfCommand)
 
     local groupNotEmpty = false;
@@ -442,12 +434,12 @@ function MMCP.chatToGroup(group, message)
 
     if groupNotEmpty then
         echoMsg = string.format("%s%sYou chat to %s<%s>%s, '%s'%s",
-           MMCP.colors.ForeBoldRed, "", MMCP.colors.ForeBoldCyan,
-           group, message, MMCP.colors.StyleReset)
+           MMCPColors.ForeBoldRed, "", MMCPColors.ForeBoldCyan,
+           group, message, MMCPColors.StyleReset)
     else
         echoMsg = string.format("%s%sYou try to chat to <%s%s%s> but it is empty and no-one hears you say: '%s'%s",
-            MMCP.colors.ForeBoldRed, "", MMCP.colors.ForeBoldCyan,
-            group, message, MMCP.colors.StyleReset)
+            MMCPColors.ForeBoldRed, "", MMCPColors.ForeBoldCyan,
+            group, message, MMCPColors.StyleReset)
     end
 
     decho(ansi2decho(echoMsg))
@@ -473,7 +465,7 @@ function MMCP.SendServedMessage(sender, msg, isServed)
         string.char(MMCPCommands.ChatEverybody), msg, string.char(MMCPCommands.EndOfCommand))
 
     for id, client in pairs(MMCP.clients) do
-        if client:IsActive() and client ~= sender and (not isServed and client:IsServed()) then
+        if client:IsActive() and client ~= sender and (not isServed and client:GetProperty("served")) then
             client:Send(outMsg)
         end
     end
@@ -506,11 +498,12 @@ function MMCP.mainLoop()
         MMCP.SaveClients()
     end
 
+    -- For some reason we need this or it breaks...?
     if activeClients then
         coroutine.yield()
     end
 
-    coroutine.yield() -- Yield after each full cycle of client checks
+    coroutine.yield()
   end
 end
 
@@ -521,7 +514,6 @@ if not MMCP.initError then
     function MMCP.manageMainLoop()
         if coroutine.status(mainLoopCo) ~= "dead" then
             coroutine.resume(mainLoopCo)
-            -- Here, you're free to do other tasks, then loop back to resume the mainLoop coroutine
             -- Adjust the delay to balance responsiveness with efficiency
             socket.select(nil, nil, 0.001) -- Sleep briefly to reduce CPU usage
         end
@@ -529,7 +521,7 @@ if not MMCP.initError then
 
 
     if MMCP.socketTimer then
-    killTimer(MMCP.socketTimer)
+        killTimer(MMCP.socketTimer)
     end
 
     MMCP.socketTimer = tempTimer(.1, function() MMCP.manageMainLoop() end, true)

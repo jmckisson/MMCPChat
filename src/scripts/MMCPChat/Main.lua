@@ -11,12 +11,14 @@ function MMCP.ChatInfoMessage(message)
     cecho(string.format("\n<yellow>[ CHAT ]  - <green>%s<reset>\n", message))
 end
 
+--[[
 local socket = InitMMCPSocketLib()
 
 if not socket then
     MMCP.ChatInfoMessage("Error loading socket library")
     MMCP.initError = true
 end
+--]]
 
 
 function hexDump(message)
@@ -507,6 +509,7 @@ function MMCP.mainLoop()
   end
 end
 
+--[[
 if not MMCP.initError then
     local mainLoopCo = coroutine.create(MMCP.mainLoop)
 
@@ -528,3 +531,4 @@ if not MMCP.initError then
 
     MMCP.LoadOptions()
 end
+--]]

@@ -1,7 +1,7 @@
 {
        "package": "MMCPChat",
-       "title": "MudMaster Chat Protocol",
-       "version": "0.0.6",
+       "title": "MudMaster Chat Protocol Companion",
+       "version": "0.1.0",
        "author": "Kymbahl",
        "icon": "",
        "outputFile": true

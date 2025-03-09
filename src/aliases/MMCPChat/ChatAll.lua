@@ -1,1 +1,0 @@
-MMCP.chatAll(matches[2])

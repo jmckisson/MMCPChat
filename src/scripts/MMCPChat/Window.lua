@@ -1,3 +1,5 @@
+MMCP = MMCP or {}
+
 MMCP.window = MMCP.window or Adjustable.Container:new({
     name = "MMCP Connections"
 })
@@ -15,15 +17,17 @@ MMCP.console = Geyser.MiniConsole:new({
 function MMCP.UpdateConsole()
     MMCP.console:clear()
 
+    local clientList = getChatList()
+
     -- Find longest client name and host
     local nameLen = 12
     local hostLen = 12
-    for id, client in pairs(MMCP.clients) do
-        if string.len(client:GetProperty("name")) > nameLen then
-            nameLen = string.len(client:GetProperty("name"))
+    for id, client in pairs(clientList) do
+        if string.len(client.name) > nameLen then
+            nameLen = string.len(client.name)
         end
-        if string.len(client:Host()) > hostLen then
-            hostLen = string.len(client:Host())
+        if string.len(client.host) > hostLen then
+            hostLen = string.len(client.host)
         end
     end
 
@@ -33,17 +37,17 @@ function MMCP.UpdateConsole()
 
     MMCP.console:cecho(string.format("<b>"..headerFormat, "Id", "Name", "Host", "Port"))
 
-    for id, client in pairs(MMCP.clients) do
-        MMCP.console:cecho(string.format("%-4s ", client:GetId()))
-        
-        local formattedName = string.format(nameFormat, client:GetProperty("name"))
+    for id, client in pairs(clientList) do
+        MMCP.console:cecho(string.format("%-4s ", client.id))
+
+        local formattedName = string.format(nameFormat, client.name)
 
         MMCP.console:cechoPopup(formattedName, {
-            function() client:Ping() end
+            function() chatPing(client.id) end
         },
         {"Ping"}, true)
-        
-        MMCP.console:cecho(string.format(lastFormat, client:Host(), client:Port()))
+
+        MMCP.console:cecho(string.format(lastFormat, client.host, "????"))
 
     end
 end

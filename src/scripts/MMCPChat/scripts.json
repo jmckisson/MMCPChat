@@ -1,17 +1,17 @@
 [
        {
               "name": "Setup",
-              "isActive": "yes",
+              "isActive": "no",
               "isFolder": "no"
        },
        {
               "name": "Client",
-              "isActive": "yes",
+              "isActive": "no",
               "isFolder": "no"
        },
        {
               "name": "Main",
-              "isActive": "yes",
+              "isActive": "no",
               "isFolder": "no"
        },
        {
